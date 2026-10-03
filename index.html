@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0b1020" />
+  <title>Expense Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">PERSONAL FINANCE</div>
+        <h1>Expense Dashboard</h1>
+        <p id="subhead">Load your Excel file to turn your expense log into a live dashboard.</p>
+      </div>
+      <div class="header-actions">
+        <label class="button primary">
+          <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" hidden />
+          Load Excel
+        </label>
+        <button id="clearBtn" class="button ghost">Reset</button>
+      </div>
+    </header>
+
+    <section class="dropzone" id="dropzone">
+      <div class="drop-icon">↥</div>
+      <div>
+        <strong>Drop your expense Excel here</strong>
+        <span>or click <b>Load Excel</b> above · data is processed in your browser</span>
+      </div>
+      <div class="file-status" id="fileStatus">No file loaded</div>
+    </section>
+
+    <section class="controls card">
+      <div class="control-group">
+        <label>Month</label>
+        <select id="monthSelect"></select>
+      </div>
+      <div class="control-group">
+        <label>Category</label>
+        <select id="categorySelect"><option value="ALL">All categories</option></select>
+      </div>
+      <div class="control-group">
+        <label>Payment</label>
+        <select id="paymentSelect"><option value="ALL">All payment methods</option></select>
+      </div>
+      <div class="control-group wide">
+        <label>Search</label>
+        <input id="searchInput" type="search" placeholder="Dinner, petrol, recharge..." />
+      </div>
+    </section>
+
+    <section class="kpis">
+      <article class="kpi card"><div class="kpi-label">TOTAL SPEND</div><div class="kpi-value" id="totalSpend">₹0</div><div class="kpi-foot" id="periodLabel">Select a month</div></article>
+      <article class="kpi card"><div class="kpi-label">TRANSACTIONS</div><div class="kpi-value" id="txnCount">0</div><div class="kpi-foot">expenses recorded</div></article>
+      <article class="kpi card"><div class="kpi-label">DAILY AVERAGE</div><div class="kpi-value" id="dailyAvg">₹0</div><div class="kpi-foot">average active-day spend</div></article>
+      <article class="kpi card"><div class="kpi-label">LARGEST EXPENSE</div><div class="kpi-value" id="largestExpense">₹0</div><div class="kpi-foot" id="largestLabel">—</div></article>
+    </section>
+
+    <section class="grid two">
+      <article class="card chart-card">
+        <div class="card-head"><div><h2>Daily spend</h2><span>How your spending moved through the month</span></div></div>
+        <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
+      </article>
+      <article class="card chart-card">
+        <div class="card-head"><div><h2>By category</h2><span>Where the money went</span></div></div>
+        <div class="chart-wrap donut"><canvas id="categoryChart"></canvas></div>
+      </article>
+    </section>
+
+    <section class="grid two">
+      <article class="card chart-card">
+        <div class="card-head"><div><h2>Top categories</h2><span>Highest spending categories in the selected view</span></div></div>
+        <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+      </article>
+      <article class="card">
+        <div class="card-head"><div><h2>Top expenses</h2><span>Largest individual transactions</span></div></div>
+        <div class="table-scroll"><table><thead><tr><th>Date</th><th>Description</th><th>Type</th><th class="right">Amount</th></tr></thead><tbody id="topExpensesBody"></tbody></table></div>
+      </article>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><div><h2>Expense log</h2><span id="logSummary">0 rows</span></div></div>
+      <div class="table-scroll"><table><thead><tr><th>Date</th><th>Description</th><th>Category</th><th>Payment</th><th class="right">Amount</th><th>Notes</th></tr></thead><tbody id="logBody"></tbody></table></div>
+    </section>
+
+    <footer>
+      <span>Built for private, local Excel analysis.</span>
+      <span>Tip: keep your Excel file private; the site reads it in the browser.</span>
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
