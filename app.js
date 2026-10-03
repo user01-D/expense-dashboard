@@ -1,11 +1,17 @@
 let rawRows = [];
 let charts = {};
 
+
+/* =========================================================
+   NUMBER FORMATTING
+   ========================================================= */
+
 const INR = new Intl.NumberFormat('en-IN', {
   style: 'currency',
   currency: 'INR',
   maximumFractionDigits: 2
 });
+
 
 const compactINR = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -14,276 +20,432 @@ const compactINR = new Intl.NumberFormat('en-IN', {
   maximumFractionDigits: 1
 });
 
+
 const el = id => document.getElementById(id);
 
-/* =========================================================
-   FORMATTING
-   ========================================================= */
 
-function money(v) {
-  return INR.format(Number(v) || 0);
+function money(value) {
+
+  return INR.format(
+    Number(value) || 0
+  );
+
 }
 
-function compactMoney(v) {
-  return compactINR.format(Number(v) || 0);
+
+function compactMoney(value) {
+
+  return compactINR.format(
+    Number(value) || 0
+  );
+
 }
+
 
 /* =========================================================
    AMOUNT PARSER
    Handles:
+
    360
    360.00
    ₹360.00
    ₹1,25,000.00
-   1,25,000
    ========================================================= */
 
-function parseAmount(v) {
-  if (typeof v === 'number' && Number.isFinite(v)) {
-    return v;
+function parseAmount(value) {
+
+  if (
+    typeof value === 'number' &&
+    Number.isFinite(value)
+  ) {
+
+    return value;
+
   }
 
-  const s = String(v ?? '')
-    .trim()
-    .replace(/₹/g, '')
-    .replace(/,/g, '')
-    .replace(/\s/g, '');
 
-  if (!s) return 0;
+  const cleaned =
+    String(value ?? '')
+      .trim()
+      .replace(/₹/g, '')
+      .replace(/,/g, '')
+      .replace(/\s/g, '');
 
-  const n = Number(s);
 
-  return Number.isFinite(n) ? n : 0;
+  if (!cleaned) {
+    return 0;
+  }
+
+
+  const number =
+    Number(cleaned);
+
+
+  return Number.isFinite(number)
+    ? number
+    : 0;
+
 }
+
 
 /* =========================================================
    DATE PARSER
-   PRIMARY FORMAT:
+
+   YOUR FORMAT:
    DD/MM/YYYY
 
-   Examples:
-   01/09/2026 → 1 September 2026
-   03/09/2026 → 3 September 2026
-   09/09/2026 → 9 September 2026
-   30/09/2026 → 30 September 2026
+   01/09/2026
+   means:
+   1 September 2026
+
+   NOT:
+   January 9
    ========================================================= */
 
-function parseDate(v) {
+function parseDate(value) {
 
-  // -----------------------------------------
-  // Excel / JavaScript Date object
-  // -----------------------------------------
-  if (v instanceof Date && !isNaN(v.getTime())) {
-    return new Date(
-      v.getFullYear(),
-      v.getMonth(),
-      v.getDate()
-    );
-  }
 
-  // -----------------------------------------
-  // Excel serial date
-  // -----------------------------------------
+  /* Excel Date object */
+
   if (
-    typeof v === 'number' &&
-    window.XLSX &&
-    XLSX.SSF
+    value instanceof Date &&
+    !Number.isNaN(value.getTime())
   ) {
+
+    return new Date(
+      value.getFullYear(),
+      value.getMonth(),
+      value.getDate()
+    );
+
+  }
+
+
+  /* Excel serial number */
+
+  if (
+    typeof value === 'number' &&
+    window.XLSX?.SSF
+  ) {
+
     try {
-      const o = XLSX.SSF.parse_date_code(v);
 
-      if (o) {
+      const parsed =
+        XLSX.SSF.parse_date_code(value);
+
+
+      if (parsed) {
+
         return new Date(
-          o.y,
-          o.m - 1,
-          o.d
+          parsed.y,
+          parsed.m - 1,
+          parsed.d
         );
+
       }
-    } catch (err) {
-      console.warn('Excel date parsing error:', err);
+
     }
+
+    catch (error) {
+
+      console.warn(
+        'Excel date error:',
+        error
+      );
+
+    }
+
   }
 
-  const s = String(v ?? '').trim();
 
-  if (!s) return null;
+  const text =
+    String(value ?? '')
+      .trim();
 
-  // -----------------------------------------
-  // IMPORTANT:
-  // Read DD/MM/YYYY FIRST.
-  // Do NOT allow new Date(s) to guess.
-  // -----------------------------------------
 
-  let m = s.match(
-    /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/
-  );
-
-  if (m) {
-
-    const day = Number(m[1]);
-    const month = Number(m[2]);
-    const year = Number(m[3]);
-
-    const d = new Date(
-      year,
-      month - 1,
-      day
-    );
-
-    // Validate
-    if (
-      d.getFullYear() === year &&
-      d.getMonth() === month - 1 &&
-      d.getDate() === day
-    ) {
-      return d;
-    }
-
+  if (!text) {
     return null;
   }
 
-  // -----------------------------------------
-  // ISO fallback: YYYY-MM-DD
-  // -----------------------------------------
 
-  m = s.match(
-    /^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/
-  );
+  /*
+    IMPORTANT:
 
-  if (m) {
+    Parse DD/MM/YYYY BEFORE
+    JavaScript gets to guess.
+  */
 
-    const year = Number(m[1]);
-    const month = Number(m[2]);
-    const day = Number(m[3]);
-
-    const d = new Date(
-      year,
-      month - 1,
-      day
+  let match =
+    text.match(
+      /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/
     );
 
+
+  if (match) {
+
+    const day =
+      Number(match[1]);
+
+    const month =
+      Number(match[2]);
+
+    const year =
+      Number(match[3]);
+
+
+    const date =
+      new Date(
+        year,
+        month - 1,
+        day
+      );
+
+
+    /*
+      Validate date.
+    */
+
     if (
-      d.getFullYear() === year &&
-      d.getMonth() === month - 1 &&
-      d.getDate() === day
+
+      date.getFullYear() === year &&
+
+      date.getMonth() === month - 1 &&
+
+      date.getDate() === day
+
     ) {
-      return d;
+
+      return date;
+
     }
 
+
     return null;
+
   }
+
+
+  /*
+    ISO fallback
+    YYYY-MM-DD
+  */
+
+  match =
+    text.match(
+      /^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/
+    );
+
+
+  if (match) {
+
+    const year =
+      Number(match[1]);
+
+    const month =
+      Number(match[2]);
+
+    const day =
+      Number(match[3]);
+
+
+    const date =
+      new Date(
+        year,
+        month - 1,
+        day
+      );
+
+
+    if (
+
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+
+    ) {
+
+      return date;
+
+    }
+
+  }
+
 
   return null;
+
 }
+
 
 /* =========================================================
-   DATE HELPERS
-   IMPORTANT:
-   Do not use toISOString() here.
-   It converts local time to UTC and can shift dates.
+   DATE KEY
+
+   DON'T USE toISOString()
+
+   because UTC conversion can shift
+   the date backward in India.
    ========================================================= */
 
-function dateKey(d) {
-
-  if (!(d instanceof Date) || isNaN(d.getTime())) {
-    return '';
-  }
+function dateKey(date) {
 
   return [
-    d.getFullYear(),
-    String(d.getMonth() + 1).padStart(2, '0'),
-    String(d.getDate()).padStart(2, '0')
+
+    date.getFullYear(),
+
+    String(
+      date.getMonth() + 1
+    ).padStart(2, '0'),
+
+    String(
+      date.getDate()
+    ).padStart(2, '0')
+
   ].join('-');
+
 }
 
-function fmtDate(d) {
 
-  if (!(d instanceof Date) || isNaN(d.getTime())) {
+/* =========================================================
+   DATE LABEL
+   ========================================================= */
+
+function fmtDate(date) {
+
+  if (
+    !(date instanceof Date) ||
+    Number.isNaN(date.getTime())
+  ) {
+
     return '—';
+
   }
 
-  return d.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric'
-  });
+
+  return date.toLocaleDateString(
+    'en-IN',
+    {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }
+  );
+
 }
 
-function monthKey(d) {
 
-  return `${d.getFullYear()}-${String(
-    d.getMonth() + 1
-  ).padStart(2, '0')}`;
+/* =========================================================
+   MONTH HELPERS
+   ========================================================= */
+
+function monthKey(date) {
+
+  return `${
+
+    date.getFullYear()
+
+  }-${
+
+    String(
+      date.getMonth() + 1
+    ).padStart(2, '0')
+
+  }`;
+
 }
+
 
 function monthLabel(key) {
 
-  const [y, m] = key.split('-').map(Number);
+  const [
+    year,
+    month
+  ] =
+    key
+      .split('-')
+      .map(Number);
+
 
   return new Date(
-    y,
-    m - 1,
+    year,
+    month - 1,
     1
-  ).toLocaleDateString('en-IN', {
-    month: 'long',
-    year: 'numeric'
-  });
+  ).toLocaleDateString(
+    'en-IN',
+    {
+      month: 'long',
+      year: 'numeric'
+    }
+  );
+
 }
 
+
 /* =========================================================
-   ESCAPE HTML
+   HTML ESCAPE
    ========================================================= */
 
-function escapeHtml(s) {
+function escapeHtml(value) {
 
-  return String(s ?? '').replace(
+  return String(
+    value ?? ''
+  ).replace(
     /[&<>"']/g,
-    c => ({
+    character => ({
+
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       '"': '&quot;',
       "'": '&#039;'
-    }[c])
+
+    }[character])
   );
+
 }
 
+
 /* =========================================================
-   HEADER FINDER
-   Makes the Excel reader more tolerant of spaces/case.
+   NORMALIZE HEADER NAMES
    ========================================================= */
 
-function cleanHeader(value) {
+function normalizeHeader(header) {
 
-  return String(value ?? '')
+  return String(
+    header ?? ''
+  )
     .trim()
     .toLowerCase()
     .replace(/\s+/g, ' ');
+
 }
+
+
+/* =========================================================
+   FIND EXCEL COLUMN
+   ========================================================= */
 
 function findColumn(row, possibleNames) {
 
-  const keys = Object.keys(row);
-
-  for (const name of possibleNames) {
-
-    const wanted = cleanHeader(name);
-
-    const found = keys.find(
-      key => cleanHeader(key) === wanted
+  const wanted =
+    possibleNames.map(
+      normalizeHeader
     );
 
-    if (found !== undefined) {
-      return found;
-    }
-  }
 
-  return null;
+  return Object.keys(row)
+    .find(
+      key =>
+        wanted.includes(
+          normalizeHeader(key)
+        )
+    ) || null;
+
 }
 
+
 /* =========================================================
-   NORMALIZE EXCEL ROWS
-   Expected Excel columns:
+   NORMALIZE EXCEL DATA
+
+   Expected columns:
 
    Date
    Expense Name
@@ -294,98 +456,137 @@ function findColumn(row, possibleNames) {
 
 function normalize(rows) {
 
-  return rows.map(r => {
+  return rows
 
-    const dateCol = findColumn(r, [
-      'Date',
-      'DATE',
-      'date'
-    ]);
+    .map(row => {
 
-    const nameCol = findColumn(r, [
-      'Expense Name',
-      'Expense Description',
-      'Description',
-      'Expense Description '
-    ]);
 
-    const typeCol = findColumn(r, [
-      'Expense Type',
-      'Category',
-      'Type'
-    ]);
+      const dateColumn =
+        findColumn(
+          row,
+          [
+            'Date',
+            'DATE',
+            'date'
+          ]
+        );
 
-    const subClassCol = findColumn(r, [
-      'Expense Sub Class',
-      'Expense Subclass',
-      'Sub Class',
-      'Subclass',
-      'Subcategory',
-      'Expense Sub Class '
-    ]);
 
-    const amountCol = findColumn(r, [
-      'Amount',
-      'Amount (₹)',
-      'Amount (INR)',
-      'amount',
-      'AMOUNT'
-    ]);
+      const nameColumn =
+        findColumn(
+          row,
+          [
+            'Expense Name',
+            'Expense Description',
+            'Description'
+          ]
+        );
 
-    const d = parseDate(
-      dateCol ? r[dateCol] : ''
+
+      const typeColumn =
+        findColumn(
+          row,
+          [
+            'Expense Type',
+            'Category',
+            'Type'
+          ]
+        );
+
+
+      const subClassColumn =
+        findColumn(
+          row,
+          [
+            'Expense Sub Class',
+            'Expense Subclass',
+            'Sub Class',
+            'Subclass',
+            'Subcategory'
+          ]
+        );
+
+
+      const amountColumn =
+        findColumn(
+          row,
+          [
+            'Amount',
+            'Amount (₹)',
+            'Amount (INR)',
+            'amount',
+            'AMOUNT'
+          ]
+        );
+
+
+      const date =
+        parseDate(
+          dateColumn
+            ? row[dateColumn]
+            : ''
+        );
+
+
+      const description =
+        String(
+          nameColumn
+            ? row[nameColumn]
+            : ''
+        ).trim();
+
+
+      const type =
+        String(
+          typeColumn
+            ? row[typeColumn]
+            : 'Uncategorised'
+        ).trim()
+        || 'Uncategorised';
+
+
+      const subClass =
+        String(
+          subClassColumn
+            ? row[subClassColumn]
+            : 'Uncategorised'
+        ).trim()
+        || 'Uncategorised';
+
+
+      const amount =
+        parseAmount(
+          amountColumn
+            ? row[amountColumn]
+            : ''
+        );
+
+
+      return {
+
+        date,
+
+        description,
+
+        type,
+
+        subClass,
+
+        amount
+
+      };
+
+    })
+
+    .filter(
+      row =>
+        row.date &&
+        row.description &&
+        row.amount > 0
     );
 
-    const amount = parseAmount(
-      amountCol ? r[amountCol] : ''
-    );
-
-    const description = String(
-      nameCol ? r[nameCol] : ''
-    ).trim();
-
-    const type = String(
-      typeCol ? r[typeCol] : 'Uncategorised'
-    ).trim() || 'Uncategorised';
-
-    const subClass = String(
-      subClassCol ? r[subClassCol] : ''
-    ).trim();
-
-    return {
-      date: d,
-      description,
-      type,
-      subClass,
-      amount,
-
-      payment: String(
-        r[
-          findColumn(r, [
-            'Payment Method',
-            'Payment',
-            'Mode'
-          ])
-        ] ?? 'Not specified'
-      ).trim() || 'Not specified',
-
-      notes: String(
-        r[
-          findColumn(r, [
-            'Notes',
-            'Note'
-          ])
-        ] ?? ''
-      ).trim()
-    };
-
-  }).filter(
-    x =>
-      x.date &&
-      x.description &&
-      x.amount > 0
-  );
 }
+
 
 /* =========================================================
    LOAD WORKBOOK
@@ -393,171 +594,253 @@ function normalize(rows) {
 
 function loadWorkbook(
   data,
-  name = 'Excel file'
+  filename = 'Excel file'
 ) {
 
   try {
 
-    const wb = XLSX.read(data, {
-      type: 'array',
-      cellDates: true
-    });
 
-    // Prefer a sheet containing "expense"
-    // otherwise use first sheet
-    let chosen =
-      wb.SheetNames.find(
-        s => /expense/i.test(s)
-      ) ||
-      wb.SheetNames[0];
+    const workbook =
+      XLSX.read(
+        data,
+        {
+          type: 'array',
+          cellDates: true
+        }
+      );
 
-    if (!chosen) {
+
+    /*
+      Prefer a sheet whose name
+      contains "expense".
+    */
+
+    const sheetName =
+      workbook.SheetNames.find(
+        sheet =>
+          /expense/i.test(sheet)
+      )
+      ||
+      workbook.SheetNames[0];
+
+
+    if (!sheetName) {
+
       throw new Error(
         'No worksheet found.'
       );
+
     }
 
-    const ws = wb.Sheets[chosen];
+
+    const worksheet =
+      workbook.Sheets[sheetName];
+
 
     const rows =
       XLSX.utils.sheet_to_json(
-        ws,
+        worksheet,
         {
           defval: '',
           raw: true
         }
       );
 
-    rawRows = normalize(rows);
+
+    rawRows =
+      normalize(rows);
+
 
     rawRows.sort(
-      (a, b) => a.date - b.date
+      (a,b) =>
+        a.date - b.date
     );
 
-    el('fileStatus').textContent =
-      `${name} · ${rawRows.length} expenses`;
 
-    el('subhead').textContent =
-      `${chosen} · ${rawRows.length} valid expense rows loaded locally in your browser.`;
+    el(
+      'fileStatus'
+    ).textContent =
+      `${filename} · ${rawRows.length} expenses`;
+
+
+    el(
+      'subhead'
+    ).textContent =
+      `${sheetName} · Visual dashboard built from valid expense rows.`;
+
 
     populateFilters();
+
     render();
 
-  } catch (err) {
+
+  }
+
+  catch (error) {
 
     console.error(
-      'Workbook loading error:',
-      err
+      error
     );
 
-    el('fileStatus').textContent =
-      'Could not read Excel file';
 
-    el('subhead').textContent =
+    el(
+      'fileStatus'
+    ).textContent =
+      'Could not read file';
+
+
+    el(
+      'subhead'
+    ).textContent =
       'Please check the Excel format and try again.';
 
+
     alert(
-      'I could not read this Excel file. Please check the column names and date format.'
+      'Could not read this Excel file. Use columns: Date, Expense Name, Expense Type, Expense Sub Class, Amount.'
     );
+
   }
+
 }
 
+
 /* =========================================================
-   FILTERS
+   FILTER DROPDOWNS
    ========================================================= */
 
 function populateFilters() {
 
-  const cats = [
-    ...new Set(
-      rawRows.map(r => r.type)
-    )
-  ].sort();
 
-  const pays = [
-    ...new Set(
-      rawRows.map(r => r.payment)
-    )
-  ].sort();
+  const categories =
+    [
+      ...new Set(
+        rawRows.map(
+          row => row.type
+        )
+      )
+    ]
+      .sort();
 
-  const months = [
-    ...new Set(
-      rawRows.map(r => monthKey(r.date))
-    )
-  ]
-    .sort()
-    .reverse();
 
-  el('categorySelect').innerHTML =
+  const months =
+    [
+      ...new Set(
+        rawRows.map(
+          row =>
+            monthKey(row.date)
+        )
+      )
+    ]
+      .sort()
+      .reverse();
+
+
+  el(
+    'categorySelect'
+  ).innerHTML =
+
     '<option value="ALL">All categories</option>' +
-    cats
+
+    categories
       .map(
-        x =>
-          `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`
+        category =>
+          `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`
       )
       .join('');
 
-  el('paymentSelect').innerHTML =
-    '<option value="ALL">All payment methods</option>' +
-    pays
-      .map(
-        x =>
-          `<option value="${escapeHtml(x)}">${escapeHtml(x)}</option>`
-      )
-      .join('');
 
-  el('monthSelect').innerHTML =
+  el(
+    'monthSelect'
+  ).innerHTML =
+
     months.length
+
       ? months
           .map(
-            x =>
-              `<option value="${x}">${monthLabel(x)}</option>`
+            month =>
+              `<option value="${month}">${monthLabel(month)}</option>`
           )
           .join('')
+
       : '<option value="ALL">No data</option>';
+
 }
 
+
 /* =========================================================
-   FILTERED DATA
+   FILTER DATA
    ========================================================= */
 
 function filtered() {
 
-  const month =
-    el('monthSelect').value;
 
-  const cat =
-    el('categorySelect').value;
+  const selectedMonth =
+    el(
+      'monthSelect'
+    ).value;
 
-  const pay =
-    el('paymentSelect').value;
 
-  const q =
-    el('searchInput').value
+  const selectedCategory =
+    el(
+      'categorySelect'
+    ).value;
+
+
+  const search =
+    el(
+      'searchInput'
+    )
+      .value
       .toLowerCase()
       .trim();
 
-  return rawRows.filter(r => {
 
-    const searchable =
-      `${r.description} ${r.type} ${r.subClass} ${r.payment} ${r.notes}`
-        .toLowerCase();
+  return rawRows.filter(
+    row => {
 
-    return (
-      (month === 'ALL' ||
-        monthKey(r.date) === month) &&
 
-      (cat === 'ALL' ||
-        r.type === cat) &&
+      const searchText =
 
-      (pay === 'ALL' ||
-        r.payment === pay) &&
+        `${row.description} ${row.type} ${row.subClass}`
 
-      (!q ||
-        searchable.includes(q))
-    );
-  });
+          .toLowerCase();
+
+
+      return (
+
+        (
+          selectedMonth === 'ALL' ||
+
+          monthKey(row.date) ===
+          selectedMonth
+        )
+
+        &&
+
+        (
+          selectedCategory === 'ALL' ||
+
+          row.type ===
+          selectedCategory
+        )
+
+        &&
+
+        (
+          !search ||
+
+          searchText.includes(
+            search
+          )
+        )
+
+      );
+
+    }
+  );
+
 }
+
 
 /* =========================================================
    MAIN RENDER
@@ -565,278 +848,246 @@ function filtered() {
 
 function render() {
 
-  const rows = filtered();
 
-  const month =
-    el('monthSelect').value;
+  const rows =
+    filtered();
+
 
   const total =
     rows.reduce(
-      (s, r) => s + r.amount,
+      (sum,row) =>
+        sum + row.amount,
       0
     );
 
-  const max =
-    rows.reduce(
-      (a, b) =>
-        b.amount > a.amount
-          ? b
-          : a,
-      { amount: 0 }
-    );
 
-  const activeDays =
+  const activeDates =
     new Set(
       rows.map(
-        r => dateKey(r.date)
+        row =>
+          dateKey(row.date)
       )
-    ).size;
+    );
 
-  el('totalSpend').textContent =
+
+  const activeDays =
+    activeDates.size;
+
+
+  const averageTransaction =
+    rows.length
+      ? total / rows.length
+      : 0;
+
+
+  const largest =
+    rows.reduce(
+      (max,row) =>
+        row.amount >
+        max.amount
+          ? row
+          : max,
+      {
+        amount: 0
+      }
+    );
+
+
+  /*
+    Daily totals
+  */
+
+  const dailyTotals =
+    new Map();
+
+
+  rows.forEach(
+    row => {
+
+      const key =
+        dateKey(row.date);
+
+
+      dailyTotals.set(
+        key,
+        (
+          dailyTotals.get(key)
+          || 0
+        )
+        + row.amount
+      );
+
+    }
+  );
+
+
+  const highestDay =
+    [
+      ...dailyTotals.entries()
+    ]
+      .sort(
+        (a,b) =>
+          b[1] - a[1]
+      )[0];
+
+
+  /*
+    KPI values
+  */
+
+  el(
+    'totalSpend'
+  ).textContent =
     money(total);
 
-  el('txnCount').textContent =
-    rows.length.toLocaleString('en-IN');
 
-  el('dailyAvg').textContent =
+  el(
+    'txnCount'
+  ).textContent =
+    rows.length.toLocaleString(
+      'en-IN'
+    );
+
+
+  el(
+    'dailyAvg'
+  ).textContent =
     money(
       activeDays
         ? total / activeDays
         : 0
     );
 
-  el('largestExpense').textContent =
-    money(max.amount);
 
-  el('largestLabel').textContent =
-    max.description || '—';
+  el(
+    'largestExpense'
+  ).textContent =
+    money(
+      largest.amount
+    );
 
-  el('periodLabel').textContent =
-    month === 'ALL'
+
+  el(
+    'largestLabel'
+  ).textContent =
+    largest.description ||
+    '—';
+
+
+  /*
+    Quick numbers
+  */
+
+  el(
+    'activeDays'
+  ).textContent =
+    activeDays.toLocaleString(
+      'en-IN'
+    );
+
+
+  el(
+    'avgTransaction'
+  ).textContent =
+    money(
+      averageTransaction
+    );
+
+
+  if (highestDay) {
+
+    const highestDate =
+      new Date(
+        `${highestDay[0]}T00:00:00`
+      );
+
+
+    el(
+      'highestDay'
+    ).textContent =
+      fmtDate(highestDate);
+
+
+    el(
+      'highestDayAmount'
+    ).textContent =
+      money(highestDay[1]);
+
+  }
+
+  else {
+
+    el(
+      'highestDay'
+    ).textContent =
+      '—';
+
+
+    el(
+      'highestDayAmount'
+    ).textContent =
+      '₹0';
+
+  }
+
+
+  /*
+    Period
+  */
+
+  const selectedMonth =
+    el(
+      'monthSelect'
+    ).value;
+
+
+  el(
+    'periodLabel'
+  ).textContent =
+
+    selectedMonth === 'ALL'
+
       ? 'All loaded data'
-      : monthLabel(month);
+
+      : monthLabel(
+          selectedMonth
+        );
+
+
+  /*
+    Visuals
+  */
 
   renderCharts(rows);
-  renderTables(rows);
+
+  renderSnapshot(rows);
+
+  renderTable(rows);
+
 }
 
+
 /* =========================================================
-   CHARTS
+   DESTROY OLD CHARTS
    ========================================================= */
 
-function renderCharts(rows) {
+function destroyCharts() {
 
   Object.values(charts)
-    .forEach(c => c?.destroy());
-
-  const byDay = new Map();
-  const byCat = new Map();
-
-  rows.forEach(r => {
-
-    const dk = dateKey(r.date);
-
-    byDay.set(
-      dk,
-      (byDay.get(dk) || 0) +
-        r.amount
+    .forEach(
+      chart =>
+        chart?.destroy()
     );
 
-    byCat.set(
-      r.type,
-      (byCat.get(r.type) || 0) +
-        r.amount
-    );
-  });
 
-  /* -----------------------------------------
-     DAILY SPENDING
-     ----------------------------------------- */
+  charts = {};
 
-  const days =
-    [...byDay.keys()].sort();
-
-  const dailyCanvas =
-    el('dailyChart');
-
-  if (dailyCanvas) {
-
-    charts.daily =
-      new Chart(
-        dailyCanvas,
-        {
-          type: 'line',
-
-          data: {
-            labels: days.map(d =>
-              new Date(
-                `${d}T00:00:00`
-              ).toLocaleDateString(
-                'en-IN',
-                {
-                  day: '2-digit',
-                  month: 'short'
-                }
-              )
-            ),
-
-            datasets: [
-              {
-                data:
-                  days.map(
-                    d => byDay.get(d)
-                  ),
-
-                borderWidth: 2,
-                fill: true,
-                tension: 0.28,
-                pointRadius: 2
-              }
-            ]
-          },
-
-          options: baseChart({
-            scales: {
-              y: {
-                ticks: {
-                  callback: v =>
-                    compactMoney(v)
-                }
-              },
-
-              x: {
-                grid: {
-                  display: false
-                }
-              }
-            }
-          })
-        }
-      );
-  }
-
-  /* -----------------------------------------
-     CATEGORY DOUGHNUT
-     ----------------------------------------- */
-
-  const cats =
-    [...byCat.entries()]
-      .sort(
-        (a, b) => b[1] - a[1]
-      );
-
-  const categoryCanvas =
-    el('categoryChart');
-
-  if (categoryCanvas) {
-
-    charts.category =
-      new Chart(
-        categoryCanvas,
-        {
-          type: 'doughnut',
-
-          data: {
-            labels:
-              cats.map(x => x[0]),
-
-            datasets: [
-              {
-                data:
-                  cats.map(x => x[1]),
-
-                borderWidth: 2
-              }
-            ]
-          },
-
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-
-            plugins: {
-
-              legend: {
-                position: 'right',
-
-                labels: {
-                  color: '#c9d1df',
-                  boxWidth: 12,
-                  font: {
-                    size: 11
-                  }
-                }
-              },
-
-              tooltip: {
-                callbacks: {
-                  label: ctx =>
-                    ` ${ctx.label}: ${money(ctx.raw)}`
-                }
-              }
-            }
-          }
-        }
-      );
-  }
-
-  /* -----------------------------------------
-     TOP CATEGORY BAR
-     ----------------------------------------- */
-
-  const top =
-    cats.slice(0, 8);
-
-  const barCanvas =
-    el('barChart');
-
-  if (barCanvas) {
-
-    charts.bar =
-      new Chart(
-        barCanvas,
-        {
-          type: 'bar',
-
-          data: {
-            labels:
-              top.map(x => x[0]),
-
-            datasets: [
-              {
-                data:
-                  top.map(x => x[1]),
-
-                borderRadius: 7
-              }
-            ]
-          },
-
-          options: baseChart({
-            indexAxis: 'y',
-
-            scales: {
-              x: {
-                ticks: {
-                  callback: v =>
-                    compactMoney(v)
-                }
-              },
-
-              y: {
-                grid: {
-                  display: false
-                }
-              }
-            }
-          })
-        }
-      );
-  }
 }
 
+
 /* =========================================================
-   CHART BASE OPTIONS
+   CHART COLORS
+   Let Chart.js generate colors automatically.
    ========================================================= */
 
 function baseChart(extra = {}) {
@@ -847,225 +1098,855 @@ function baseChart(extra = {}) {
 
     maintainAspectRatio: false,
 
+    interaction: {
+
+      intersect: false,
+
+      mode: 'index'
+
+    },
+
+
     plugins: {
 
       legend: {
+
         display: false
+
       },
 
+
       tooltip: {
+
         callbacks: {
-          label: ctx =>
-            ` ${money(ctx.raw)}`
+
+          label:
+            context =>
+              ` ${money(context.raw)}`
+
         }
+
       }
+
     },
+
 
     scales: {
 
       x: {
+
         ticks: {
-          color: '#8f9bb0'
+
+          color: '#aeb8ca'
+
         },
 
         grid: {
-          color: '#1c2435'
+
+          color:
+            'rgba(150,170,200,.10)'
+
         }
+
       },
 
+
       y: {
+
         ticks: {
-          color: '#8f9bb0'
+
+          color: '#aeb8ca',
+
+          callback:
+            value =>
+              compactMoney(value)
+
         },
 
         grid: {
-          color: '#1c2435'
+
+          color:
+            'rgba(150,170,200,.10)'
+
         }
+
       }
+
     },
 
+
     ...extra
+
   };
+
 }
+
 
 /* =========================================================
-   TABLES
+   RENDER CHARTS
    ========================================================= */
 
-function renderTables(rows) {
+function renderCharts(rows) {
 
-  /* -----------------------------------------
-     TOP EXPENSES
-     ----------------------------------------- */
 
-  const top =
-    [...rows]
+  destroyCharts();
+
+
+  const byDay =
+    new Map();
+
+
+  const byCategory =
+    new Map();
+
+
+  const bySubClass =
+    new Map();
+
+
+  rows.forEach(
+    row => {
+
+
+      const day =
+        dateKey(
+          row.date
+        );
+
+
+      byDay.set(
+        day,
+        (
+          byDay.get(day)
+          || 0
+        )
+        + row.amount
+      );
+
+
+      byCategory.set(
+        row.type,
+        (
+          byCategory.get(row.type)
+          || 0
+        )
+        + row.amount
+      );
+
+
+      bySubClass.set(
+        row.subClass,
+        (
+          bySubClass.get(row.subClass)
+          || 0
+        )
+        + row.amount
+      );
+
+    }
+  );
+
+
+  /*
+    DAILY LINE CHART
+  */
+
+  const days =
+    [
+      ...byDay.keys()
+    ].sort();
+
+
+  charts.daily =
+    new Chart(
+      el('dailyChart'),
+      {
+
+        type: 'line',
+
+        data: {
+
+          labels:
+
+            days.map(
+              day =>
+
+                new Date(
+                  `${day}T00:00:00`
+                )
+                  .toLocaleDateString(
+                    'en-IN',
+                    {
+                      day: '2-digit',
+                      month: 'short'
+                    }
+                  )
+            ),
+
+
+          datasets: [
+
+            {
+
+              data:
+                days.map(
+                  day =>
+                    byDay.get(day)
+                ),
+
+              borderWidth: 2.5,
+
+              fill: true,
+
+              tension: .3,
+
+              pointRadius: 2,
+
+              pointHoverRadius: 5
+
+            }
+
+          ]
+
+        },
+
+
+        options:
+          baseChart()
+
+      }
+
+    );
+
+
+  /*
+    CATEGORY PIE / DOUGHNUT
+  */
+
+  const categories =
+    [
+      ...byCategory.entries()
+    ]
       .sort(
-        (a, b) =>
-          b.amount - a.amount
+        (a,b) =>
+          b[1] - a[1]
+      );
+
+
+  charts.category =
+    new Chart(
+      el('categoryChart'),
+      {
+
+        type: 'doughnut',
+
+        data: {
+
+          labels:
+            categories.map(
+              item => item[0]
+            ),
+
+          datasets: [
+
+            {
+
+              data:
+                categories.map(
+                  item => item[1]
+                ),
+
+              borderWidth: 3,
+
+              hoverOffset: 6
+
+            }
+
+          ]
+
+        },
+
+
+        options: {
+
+          responsive: true,
+
+          maintainAspectRatio:
+            false,
+
+          cutout:
+            '66%',
+
+
+          plugins: {
+
+            legend: {
+
+              position:
+                'right',
+
+              labels: {
+
+                color:
+                  '#aeb8ca',
+
+                boxWidth:
+                  12,
+
+                padding:
+                  14,
+
+                font: {
+
+                  size:
+                    11
+
+                }
+
+              }
+
+            },
+
+
+            tooltip: {
+
+              callbacks: {
+
+                label:
+                  context =>
+                    ` ${context.label}: ${money(context.raw)}`
+
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+    );
+
+
+  /*
+    TOP CATEGORIES
+  */
+
+  const topCategories =
+    categories.slice(
+      0,
+      8
+    );
+
+
+  charts.bar =
+    new Chart(
+      el('barChart'),
+      {
+
+        type:
+          'bar',
+
+        data: {
+
+          labels:
+            topCategories.map(
+              item =>
+                item[0]
+            ),
+
+          datasets: [
+
+            {
+
+              data:
+                topCategories.map(
+                  item =>
+                    item[1]
+                ),
+
+              borderRadius:
+                8,
+
+              borderSkipped:
+                false
+
+            }
+
+          ]
+
+        },
+
+
+        options:
+
+          baseChart({
+
+            indexAxis:
+              'y',
+
+            scales: {
+
+              x: {
+
+                ticks: {
+
+                  color:
+                    '#aeb8ca',
+
+                  callback:
+                    value =>
+                      compactMoney(value)
+
+                },
+
+                grid: {
+
+                  color:
+                    'rgba(150,170,200,.10)'
+
+                }
+
+              },
+
+
+              y: {
+
+                ticks: {
+
+                  color:
+                    '#aeb8ca'
+
+                },
+
+                grid: {
+
+                  display:
+                    false
+
+                }
+
+              }
+
+            }
+
+          })
+
+      }
+
+    );
+
+
+  /*
+    SUB CLASS
+  */
+
+  const topSubClasses =
+
+    [
+      ...bySubClass.entries()
+    ]
+      .sort(
+        (a,b) =>
+          b[1] - a[1]
       )
-      .slice(0, 10);
+      .slice(
+        0,
+        8
+      );
 
-  const topBody =
-    el('topExpensesBody');
 
-  if (topBody) {
+  charts.subClass =
+    new Chart(
+      el('subClassChart'),
+      {
 
-    topBody.innerHTML =
-      top.length
+        type:
+          'bar',
 
-        ? top
-            .map(
-              r => `
-                <tr>
-                  <td>${fmtDate(r.date)}</td>
+        data: {
 
-                  <td>
-                    ${escapeHtml(
-                      r.description
-                    )}
-                  </td>
+          labels:
+            topSubClasses.map(
+              item =>
+                item[0]
+            ),
 
-                  <td>
-                    <span class="pill">
-                      ${escapeHtml(
-                        r.type
-                      )}
-                    </span>
-                  </td>
+          datasets: [
 
-                  <td class="right amount">
-                    ${money(r.amount)}
-                  </td>
-                </tr>
-              `
-            )
-            .join('')
+            {
 
-        : `
-          <tr>
-            <td
-              colspan="4"
-              class="empty"
-            >
-              No matching expenses.
-            </td>
-          </tr>
-        `;
+              data:
+                topSubClasses.map(
+                  item =>
+                    item[1]
+                ),
+
+              borderRadius:
+                8,
+
+              borderSkipped:
+                false
+
+            }
+
+          ]
+
+        },
+
+
+        options:
+
+          baseChart({
+
+            indexAxis:
+              'y',
+
+            scales: {
+
+              x: {
+
+                ticks: {
+
+                  color:
+                    '#aeb8ca',
+
+                  callback:
+                    value =>
+                      compactMoney(value)
+
+                },
+
+                grid: {
+
+                  color:
+                    'rgba(150,170,200,.10)'
+
+                }
+
+              },
+
+
+              y: {
+
+                ticks: {
+
+                  color:
+                    '#aeb8ca',
+
+                  font: {
+
+                    size:
+                      10
+
+                  }
+
+                },
+
+                grid: {
+
+                  display:
+                    false
+
+                }
+
+              }
+
+            }
+
+          })
+
+      }
+
+    );
+
+}
+
+
+/* =========================================================
+   CATEGORY SNAPSHOT
+   ========================================================= */
+
+function renderSnapshot(rows) {
+
+
+  const byCategory =
+    new Map();
+
+
+  rows.forEach(
+    row => {
+
+      byCategory.set(
+
+        row.type,
+
+        (
+          byCategory.get(row.type)
+          || 0
+        )
+        + row.amount
+
+      );
+
+    }
+  );
+
+
+  const categories =
+
+    [
+      ...byCategory.entries()
+    ]
+      .sort(
+        (a,b) =>
+          b[1] - a[1]
+      )
+      .slice(
+        0,
+        5
+      );
+
+
+  const total =
+    rows.reduce(
+      (sum,row) =>
+        sum + row.amount,
+      0
+    );
+
+
+  const max =
+    categories[0]?.[1]
+    || 1;
+
+
+  if (!categories.length) {
+
+    el(
+      'categorySnapshot'
+    ).innerHTML =
+
+      '<div class="empty-state">No matching data.</div>';
+
+    return;
+
   }
 
-  /* -----------------------------------------
-     TRANSACTION LEDGER
-     ----------------------------------------- */
+
+  el(
+    'categorySnapshot'
+  ).innerHTML =
+
+    categories
+      .map(
+        ([name,value]) => {
+
+
+          const barWidth =
+            (
+              value /
+              max
+            )
+            * 100;
+
+
+          const percentage =
+            total
+
+              ? (
+                  value /
+                  total *
+                  100
+                ).toFixed(1)
+
+              : '0.0';
+
+
+          return `
+
+            <div class="snapshot-row">
+
+              <div>
+
+                <div class="snapshot-top">
+
+                  <span>
+                    ${escapeHtml(name)}
+                  </span>
+
+                  <strong>
+                    ${money(value)}
+                  </strong>
+
+                </div>
+
+                <div class="snapshot-bar">
+
+                  <i
+                    style="width:${barWidth}%"
+                  ></i>
+
+                </div>
+
+              </div>
+
+              <div class="snapshot-amount">
+
+                ${percentage}%
+
+              </div>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join('');
+
+}
+
+
+/* =========================================================
+   DETAIL TABLE
+   Hidden until user opens it.
+   ========================================================= */
+
+function renderTable(rows) {
+
 
   const recent =
-    [...rows]
+
+    [
+      ...rows
+    ]
+
       .sort(
-        (a, b) =>
+        (a,b) =>
+
           b.date - a.date ||
+
           b.amount - a.amount
       )
-      .slice(0, 100);
 
-  const logSummary =
-    el('logSummary');
+      .slice(
+        0,
+        100
+      );
 
-  if (logSummary) {
 
-    logSummary.textContent =
-      `${rows.length.toLocaleString('en-IN')} rows · showing ${recent.length}`;
-  }
+  el(
+    'logSummary'
+  ).textContent =
 
-  const logBody =
-    el('logBody');
+    `${rows.length.toLocaleString('en-IN')} rows · showing ${recent.length}`;
 
-  if (logBody) {
 
-    logBody.innerHTML =
+  el(
+    'logBody'
+  ).innerHTML =
 
-      recent.length
+    recent.length
 
-        ? recent
-            .map(
-              r => `
-                <tr>
+      ? recent
+          .map(
+            row => `
 
-                  <td>
-                    ${fmtDate(r.date)}
-                  </td>
+              <tr>
 
-                  <td>
+                <td>
+                  ${fmtDate(row.date)}
+                </td>
+
+                <td>
+                  ${escapeHtml(
+                    row.description
+                  )}
+                </td>
+
+                <td>
+
+                  <span class="pill">
+
                     ${escapeHtml(
-                      r.description
+                      row.type
                     )}
-                  </td>
 
-                  <td>
-                    ${escapeHtml(
-                      r.type
-                    )}
-                  </td>
+                  </span>
 
-                  <td>
-                    ${escapeHtml(
-                      r.payment
-                    )}
-                  </td>
+                </td>
 
-                  <td class="right amount">
-                    ${money(r.amount)}
-                  </td>
+                <td>
+                  ${escapeHtml(
+                    row.subClass
+                  )}
+                </td>
 
-                  <td>
-                    ${escapeHtml(
-                      r.notes
-                    )}
-                  </td>
+                <td class="right amount">
 
-                </tr>
-              `
-            )
-            .join('')
+                  ${money(
+                    row.amount
+                  )}
 
-        : `
-          <tr>
-            <td
-              colspan="6"
-              class="empty"
-            >
-              No matching expenses.
-            </td>
-          </tr>
-        `;
-  }
+                </td>
+
+              </tr>
+
+            `
+          )
+          .join('')
+
+      : `
+
+        <tr>
+
+          <td
+            colspan="5"
+            class="empty-state"
+          >
+
+            No matching expenses.
+
+          </td>
+
+        </tr>
+
+      `;
+
 }
+
 
 /* =========================================================
    FILE INPUT
    ========================================================= */
 
-const fileInput =
-  el('fileInput');
+el(
+  'fileInput'
+).addEventListener(
+  'change',
+  async event => {
 
-if (fileInput) {
 
-  fileInput.addEventListener(
-    'change',
-    async e => {
+    const file =
+      event.target
+        .files?.[0];
 
-      const f =
-        e.target.files?.[0];
 
-      if (f) {
-
-        loadWorkbook(
-          await f.arrayBuffer(),
-          f.name
-        );
-      }
+    if (!file) {
+      return;
     }
-  );
-}
+
+
+    loadWorkbook(
+      await file.arrayBuffer(),
+      file.name
+    );
+
+  }
+);
+
 
 /* =========================================================
    FILTER EVENTS
@@ -1073,171 +1954,240 @@ if (fileInput) {
 
 [
   'monthSelect',
-  'categorySelect',
-  'paymentSelect'
-].forEach(id => {
+  'categorySelect'
+]
+  .forEach(
+    id => {
 
-  const node = el(id);
+      el(id)
+        .addEventListener(
+          'change',
+          render
+        );
 
-  if (node) {
+    }
+  );
 
-    node.addEventListener(
-      'change',
-      render
-    );
-  }
-});
 
-/* =========================================================
-   SEARCH
-   ========================================================= */
-
-const searchInput =
-  el('searchInput');
-
-if (searchInput) {
-
-  searchInput.addEventListener(
+el(
+  'searchInput'
+)
+  .addEventListener(
     'input',
     render
   );
-}
+
 
 /* =========================================================
-   CLEAR BUTTON
+   RESET
    ========================================================= */
 
-const clearBtn =
-  el('clearBtn');
+el(
+  'clearBtn'
+).addEventListener(
+  'click',
+  () => {
 
-if (clearBtn) {
 
-  clearBtn.addEventListener(
+    rawRows = [];
+
+
+    el(
+      'fileInput'
+    ).value = '';
+
+
+    el(
+      'fileStatus'
+    ).textContent =
+      'No file loaded';
+
+
+    el(
+      'subhead'
+    ).textContent =
+      'Load your Excel file to build your visual dashboard.';
+
+
+    el(
+      'periodLabel'
+    ).textContent =
+      'No data';
+
+
+    el(
+      'monthSelect'
+    ).innerHTML =
+
+      '<option value="ALL">All periods</option>';
+
+
+    el(
+      'categorySelect'
+    ).innerHTML =
+
+      '<option value="ALL">All categories</option>';
+
+
+    el(
+      'searchInput'
+    ).value = '';
+
+
+    el(
+      'totalSpend'
+    ).textContent =
+      '₹0';
+
+
+    el(
+      'dailyAvg'
+    ).textContent =
+      '₹0';
+
+
+    el(
+      'largestExpense'
+    ).textContent =
+      '₹0';
+
+
+    el(
+      'highestDayAmount'
+    ).textContent =
+      '₹0';
+
+
+    el(
+      'avgTransaction'
+    ).textContent =
+      '₹0';
+
+
+    el(
+      'txnCount'
+    ).textContent =
+      '0';
+
+
+    el(
+      'activeDays'
+    ).textContent =
+      '0';
+
+
+    el(
+      'largestLabel'
+    ).textContent =
+      '—';
+
+
+    el(
+      'highestDay'
+    ).textContent =
+      '—';
+
+
+    destroyCharts();
+
+
+    renderTable([]);
+
+    renderSnapshot([]);
+
+  }
+);
+
+
+/* =========================================================
+   VIEW / HIDE DETAILS
+   ========================================================= */
+
+el(
+  'toggleDetailsBtn'
+)
+  .addEventListener(
     'click',
     () => {
 
-      rawRows = [];
 
-      if (fileInput) {
-        fileInput.value = '';
-      }
-
-      if (el('fileStatus')) {
-        el('fileStatus').textContent =
-          'No file loaded';
-      }
-
-      if (el('subhead')) {
-        el('subhead').textContent =
-          'Load your Excel file to turn your expense log into a live dashboard.';
-      }
-
-      if (el('monthSelect')) {
-        el('monthSelect').innerHTML =
-          '<option value="ALL">No data</option>';
-      }
-
-      if (el('categorySelect')) {
-        el('categorySelect').innerHTML =
-          '<option value="ALL">All categories</option>';
-      }
-
-      if (el('paymentSelect')) {
-        el('paymentSelect').innerHTML =
-          '<option value="ALL">All payment methods</option>';
-      }
-
-      [
-        'totalSpend',
-        'txnCount',
-        'dailyAvg',
-        'largestExpense'
-      ].forEach(id => {
-
-        if (!el(id)) return;
-
-        el(id).textContent =
-          id === 'txnCount'
-            ? '0'
-            : '₹0';
-      });
-
-      if (el('largestLabel')) {
-        el('largestLabel').textContent =
-          '—';
-      }
-
-      Object.values(charts)
-        .forEach(c => c?.destroy());
-
-      charts = {};
-
-      renderTables([]);
-    }
-  );
-}
-
-/* =========================================================
-   DRAG & DROP
-   ========================================================= */
-
-const dz =
-  el('dropzone');
-
-if (dz) {
-
-  ['dragenter', 'dragover']
-    .forEach(ev => {
-
-      dz.addEventListener(
-        ev,
-        e => {
-
-          e.preventDefault();
-
-          dz.classList.add('drag');
-        }
-      );
-    });
-
-  ['dragleave', 'drop']
-    .forEach(ev => {
-
-      dz.addEventListener(
-        ev,
-        e => {
-
-          e.preventDefault();
-
-          dz.classList.remove('drag');
-        }
-      );
-    });
-
-  dz.addEventListener(
-    'drop',
-    async e => {
-
-      const f =
-        e.dataTransfer.files?.[0];
-
-      if (f) {
-
-        if (fileInput) {
-          fileInput.value = '';
-        }
-
-        loadWorkbook(
-          await f.arrayBuffer(),
-          f.name
+      const panel =
+        el(
+          'detailsPanel'
         );
+
+
+      const button =
+        el(
+          'toggleDetailsBtn'
+        );
+
+
+      const isOpen =
+        !panel.classList.contains(
+          'hidden'
+        );
+
+
+      const newState =
+        !isOpen;
+
+
+      panel.classList.toggle(
+        'hidden',
+        !newState
+      );
+
+
+      button.classList.toggle(
+        'open',
+        newState
+      );
+
+
+      button.setAttribute(
+        'aria-expanded',
+        String(newState)
+      );
+
+
+      button.querySelector(
+        '.toggle-icon'
+      ).textContent =
+
+        newState
+          ? '−'
+          : '+';
+
+
+      button.querySelector(
+        'span:nth-child(2)'
+      ).textContent =
+
+        newState
+
+          ? 'Hide detailed transactions'
+
+          : 'View detailed transactions';
+
+
+      if (newState) {
+
+        panel.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+
       }
+
     }
   );
-}
+
 
 /* =========================================================
    INITIAL STATE
    ========================================================= */
 
-renderTables([]);
+renderTable([]);
+
+renderSnapshot([]);
