@@ -10,11 +10,14 @@ function parseDate(v){
   if(v instanceof Date && !isNaN(v)) return new Date(v.getFullYear(),v.getMonth(),v.getDate());
   if(typeof v==='number' && window.XLSX && XLSX.SSF) { const o=XLSX.SSF.parse_date_code(v); if(o) return new Date(o.y,o.m-1,o.d); }
   const s=String(v??'').trim(); if(!s) return null;
+  let m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})(?:[T\s].*)?$/);
+  if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+  m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);
+  if(m) return new Date(+m[3],+m[2]-1,+m[1]);
   const d=new Date(s); if(!isNaN(d)) return new Date(d.getFullYear(),d.getMonth(),d.getDate());
-  const m=s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/); if(m) return new Date(+m[3],+m[2]-1,+m[1]);
   return null;
 }
-function dateKey(d){return d.toISOString().slice(0,10)}
+function dateKey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function fmtDate(d){return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
 function monthKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 function monthLabel(key){const [y,m]=key.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'})}
@@ -82,7 +85,7 @@ function renderCharts(rows){
   const byDay=new Map(), byCat=new Map();
   rows.forEach(r=>{const dk=dateKey(r.date);byDay.set(dk,(byDay.get(dk)||0)+r.amount);byCat.set(r.type,(byCat.get(r.type)||0)+r.amount)});
   const days=[...byDay.keys()].sort();
-  charts.daily=new Chart(el('dailyChart'),{type:'line',data:{labels:days.map(d=>new Date(d+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'})),datasets:[{data:days.map(d=>byDay.get(d)),borderWidth:2,fill:true,tension:.28,pointRadius:2}]},options:baseChart({scales:{y:{ticks:{callback:v=>compactMoney(v)}},x:{grid:{display:false}}}})});
+  charts.daily=new Chart(el('dailyChart'),{type:'line',data:{labels:days.map(d=>{const [y,m,day]=d.split('-').map(Number);return new Date(y,m-1,day).toLocaleDateString('en-IN',{day:'2-digit',month:'short'})}),datasets:[{data:days.map(d=>byDay.get(d)),borderWidth:2,fill:true,tension:.28,pointRadius:2}]},options:baseChart({scales:{y:{ticks:{callback:v=>compactMoney(v)}},x:{grid:{display:false}}}})});
   const cats=[...byCat.entries()].sort((a,b)=>b[1]-a[1]);
   charts.category=new Chart(el('categoryChart'),{type:'doughnut',data:{labels:cats.map(x=>x[0]),datasets:[{data:cats.map(x=>x[1]),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:'#c9d1df',boxWidth:12,font:{size:11}}},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${money(ctx.raw)}`}}}}});
   const top=cats.slice(0,8);
