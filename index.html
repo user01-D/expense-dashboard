@@ -58,7 +58,7 @@
 
 <div class="modal-backdrop hidden" id="expenseModal">
   <div class="modal">
-    <div class="modal-head"><div><p class="eyebrow">NEW TRANSACTION</p><h2>Add expense</h2></div><button class="close-btn" data-close>×</button></div>
+    <div class="modal-head"><div><p class="eyebrow" id="expenseModalEyebrow">NEW TRANSACTION</p><h2 id="expenseModalTitle">Add expense</h2></div><button class="close-btn" data-close>×</button></div>
     <form id="expenseForm">
       <div class="form-grid">
         <div class="field"><label>Date</label><input id="date" type="date" required></div>
@@ -70,7 +70,7 @@
         <div class="field"><label>Bank</label><select id="bank"></select></div>
         <div class="field full"><label>Note <span>(optional)</span></label><input id="note" placeholder="Anything you want to remember"></div>
       </div>
-      <div class="modal-actions"><button type="button" class="button ghost" data-close>Cancel</button><button class="button primary" type="submit">Save expense</button></div>
+      <div class="modal-actions"><button type="button" class="button ghost" data-close>Cancel</button><button class="button primary" id="expenseSubmitBtn" type="submit">Save expense</button></div>
     </form>
   </div>
 </div>
