@@ -32,7 +32,7 @@ function normalize(rows){
 }
 
 function loadWorkbook(data,name='Excel file'){
-  const wb=XLSX.read(data,{type:'array',cellDates:true});
+  const wb = XLSX.read(data, {type:'array', cellDates:false});
   let chosen=wb.SheetNames.find(s=>/expense/i.test(s))||wb.SheetNames[0];
   const ws=wb.Sheets[chosen];
   rawRows=normalize(XLSX.utils.sheet_to_json(ws,{defval:''}));
